@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SimpleSAML\SAML2;
 
 use Exception;
+use Psr\Http\Message\ServerRequestInterface;
 use SimpleSAML\Assert\Assert;
 use SimpleSAML\SAML2\XML\samlp\AbstractMessage;
 use SimpleSAML\SAML2\XML\samlp\AbstractRequest;
@@ -101,24 +102,27 @@ class HTTPRedirect extends Binding
      *
      * Throws an exception if it is unable receive the message.
      *
-     * @throws \Exception
+     * @param \Psr\Http\Message\ServerRequestInterface $request
      * @return \SimpleSAML\SAML2\XML\samlp\AbstractMessage The received message.
+     * @throws \Exception
      *
      * NPath is currently too high but solving that just moves code around.
      */
-    public function receive(): AbstractMessage
+    public function receive(ServerRequestInterface $request): AbstractMessage
     {
-        $data = self::parseQuery();
-        if (array_key_exists('SAMLRequest', $data)) {
-            $message = $data['SAMLRequest'];
-        } elseif (array_key_exists('SAMLResponse', $data)) {
-            $message = $data['SAMLResponse'];
+        $query = $request->getQueryParams();
+        if (array_key_exists('SAMLRequest', $query)) {
+            $message = $query['SAMLRequest'];
+            $signedQuery = 'SAMLRequest=' . urlencode($query['SAMLRequest']);
+        } elseif (array_key_exists('SAMLResponse', $query)) {
+            $message = $query['SAMLResponse'];
+            $signedQuery = 'SAMLResponse=' . urlencode($query['SAMLResponse']);
         } else {
             throw new Exception('Missing SAMLRequest or SAMLResponse parameter.');
         }
 
-        if (isset($data['SAMLEncoding']) && $data['SAMLEncoding'] !== self::DEFLATE) {
-            throw new Exception('Unknown SAMLEncoding: ' . var_export($data['SAMLEncoding'], true));
+        if (isset($query['SAMLEncoding']) && $query['SAMLEncoding'] !== self::DEFLATE) {
+            throw new Exception('Unknown SAMLEncoding: ' . var_export($query['SAMLEncoding'], true));
         }
 
         $message = base64_decode($message);
@@ -138,22 +142,24 @@ class HTTPRedirect extends Binding
         }
         $message = MessageFactory::fromXML($document->firstChild);
 
-        if (array_key_exists('RelayState', $data)) {
-            $message->setRelayState($data['RelayState']);
+        if (array_key_exists('RelayState', $query)) {
+            $message->setRelayState($query['RelayState']);
+            $signedQuery .= '&RelayState=' . urlencode($query['RelayState']);
         }
 
-        if (!array_key_exists('Signature', $data)) {
+        if (!array_key_exists('Signature', $query)) {
             return $message;
         }
 
-        if (!array_key_exists('SigAlg', $data)) {
+        if (!array_key_exists('SigAlg', $query)) {
             throw new Exception('Missing signature algorithm.');
         }
+        $signedQuery .= '&SigAlg=' . urlencode($query['SigAlg']);
 
         $signData = [
-            'Signature' => $data['Signature'],
-            'SigAlg'    => $data['SigAlg'],
-            'Query'     => $data['SignedQuery'],
+            'Signature' => $query['Signature'],
+            'SigAlg'    => $query['SigAlg'],
+            'Query'     => $signedQuery,
         ];
 
         $message->addValidator([get_class($this), 'validateSignature'], $signData);
@@ -170,14 +176,13 @@ class HTTPRedirect extends Binding
      * signed.
      *
      * @return array The query data that is signed.
-     */
     private static function parseQuery(): array
     {
-        /*
-         * Parse the query string. We need to do this ourself, so that we get access
-         * to the raw (urlencoded) values. This is required because different software
-         * can urlencode to different values.
-         */
+        //
+        // Parse the query string. We need to do this ourself, so that we get access
+        // to the raw (urlencoded) values. This is required because different software
+        // can urlencode to different values.
+        //
         $data = [];
         $relayState = '';
         $sigAlg = '';
@@ -188,7 +193,7 @@ class HTTPRedirect extends Binding
             if (count($tmp) === 2) {
                 $value = $tmp[1];
             } else {
-                /* No value for this parameter. */
+                // No value for this parameter.
                 $value = '';
             }
             $name = urldecode($name);
@@ -212,6 +217,7 @@ class HTTPRedirect extends Binding
 
         return $data;
     }
+     */
 
 
     /**
