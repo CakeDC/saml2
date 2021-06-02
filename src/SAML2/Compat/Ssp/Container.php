@@ -72,7 +72,7 @@ class Container extends AbstractContainer
     public function redirect(string $url, array $data = []) : void
     {
         /** @psalm-suppress UndefinedClass */
-        HTTP::redirectTrustedURL($url, $data);
+        (new HTTP())->redirectTrustedURL($url, $data);
     }
 
 
@@ -85,7 +85,7 @@ class Container extends AbstractContainer
     public function postRedirect(string $url, array $data = []) : void
     {
         /** @psalm-suppress UndefinedClass */
-        HTTP::submitPOSTData($url, $data);
+       (new HTTP())->submitPOSTData($url, $data);
     }
 
 
